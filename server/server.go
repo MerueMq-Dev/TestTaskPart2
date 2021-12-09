@@ -26,7 +26,7 @@ func handleGetRequest(writer http.ResponseWriter, request *http.Request) {
 		panic(err)
 	}
 	defer db.Close()
-	row := db.QueryRow(`SELECT applicationName, firstParam, secondParam, Version
+	row := db.QueryRow(`SELECT applicationName, firstParam, secondParam, version
 	FROM applications WHERE applicationName in ("` + appName + `");`)
 
 	var appFromDb App
@@ -44,20 +44,35 @@ func handlePostRequest(writer http.ResponseWriter, request *http.Request) {
 
 	db, _ := sql.Open("sqlite3", "./apps.db")
 	defer db.Close()
-	stmt, _ := db.Prepare(`INSERT INTO applications (applicationName,firstParam, secondParam, version) values (?, ?, ?, ?)`)
-	stmt.Exec(appFromRequest.AplicationName, appFromRequest.Param1, appFromRequest.Param2, 1)
+	createTable(db, "applications")
 
 	row := db.QueryRow(`SELECT applicationName, firstParam, secondParam, Version
 	FROM applications WHERE applicationName in ("` + appFromRequest.AplicationName + `");`)
 	var appFromDb App
 	row.Scan(&appFromDb.AplicationName, &appFromDb.Param1, &appFromDb.Param2, &appFromDb.Version)
-	if appFromRequest.Param1 != appFromDb.Param1 || appFromRequest.Param2 != appFromDb.Param2 {
+
+	if appFromDb.AplicationName != appFromRequest.AplicationName {
+		stmt, _ := db.Prepare(`INSERT INTO applications (applicationName,firstParam, secondParam, version) values (?, ?, ?, ?)`)
+		stmt.Exec(appFromRequest.AplicationName, appFromRequest.Param1, appFromRequest.Param2, 1)
+		stmt.Close()
+		return
+	} else if appFromDb.Param1 != appFromRequest.Param1 || appFromDb.Param2 != appFromRequest.Param2 {
 		stamt, _ := db.Prepare(`UPDATE applications SET firstParam = ?, secondParam = ?, Version = Version + 1
-	    WHERE applicationName=?`)
+	      WHERE applicationName = ?`)
 		stamt.Exec(appFromRequest.Param1, appFromRequest.Param2, appFromRequest.AplicationName)
 		stamt.Close()
 	}
+}
 
+func createTable(db *sql.DB, tableName string) error {
+	_, err := db.Exec(`CREATE TABLE IF NOT EXISTS ` + tableName + `
+	(
+	applicationName TEXT UNIQUE NOT NULL,
+	firstParam INTEGER NOT NULL,
+	secondParam TEXT NOT NULL,
+	version INTEGER NOT NULL
+	)`)
+	return err
 }
 
 func main() {
@@ -69,18 +84,3 @@ func main() {
 	fmt.Println("Server is listening...")
 	http.ListenAndServe(":8181", nil)
 }
-
-// func createTable(){
-
-// 	db, _ := sql.Open("sqlite3", "./app.db")
-
-// 	stmt, _ := db.Prepare(`CREATE TABLE applications(
-// 		id    INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE,
-// 		applicationName TEXT UNIQUE NOT NULL,
-// 		firstParam INTEGER NOT NULL,
-// 		secondParam TEXT NOT NULL,
-// 		Version INTEGER NOT NULL
-// 	  )`)
-
-// 	stmt.Exec()
-// }
